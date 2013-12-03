@@ -1,26 +1,28 @@
 
 
+
 %%
 
 clear all;
 %% Flag
 freq_flag = 1;
 stemmer_flag = 0;
+idf_flag = 1;
 SVDs_flag = 0;
 SVM_flag = 0;
+porterStemmer_flag = 0;
 LG_flag = 1;
 
 
 %% Load Data
 
 load ../data/review_dataset.mat;
-load ../data/ocr_data.mat;
-load ../data/review_dataset.mat;
 
 
 % reset train data name to train2 to avoid confliction with func train
 train2 = train;
 clearvars train;
+
 %% set ind
 
 train_range_start = 1;
@@ -33,28 +35,19 @@ test_range_end = 25000;
     if 1
         X = train2.counts(train_range_start:train_range_end,:);      %train data 
         Y = train2.labels(train_range_start:train_range_end,:);       %train labels
-        Xtest = train2.counts(test_range_start, test_range_end,:);   %test data
-        Ytest = train2.labels(test_range_start, test_range_end,:);    %test label
+        disp(size(X));
+        disp(size(Y));
+
+        Xtest = train2.counts(test_range_start:test_range_end,:);   %test data
+        Ytest = train2.labels(test_range_start:test_range_end,:);    %test label
+        disp(size(Xtest));
+        disp(size(Ytest));
     else
         X = train2.counts;      %train data 
         Y = train2.labels;       %train labels
         Xtest = quiz.counts;   %test data
         Ytest = ones(size(quiz.counts, 1), 1);    %test label        
     end
-
-
-%% Construct idf vector for features
-num_feats = length(train2.counts);
-df = zeros(1,numfeats);
-d = zeros(1,numfeats);
-d(1:numfeats) = numfeats;
-for i = 1:numfeats
-    %% Note: using add-1 smoothing
-    df(1,i) = nnz(train2.counts(:,i)) + 1;
-end
-idf = log(d ./ df);
-[sorted_idf, IDX] = sort(idf);
-idftrain = train2.counts(IDX,:);
         
 
 %% use word frequency
@@ -79,6 +72,61 @@ if freq_flag
 
     end
 end
+
+%% Construct idf vector for features
+if idf_flag
+    num_feats = length(train2.counts);
+    df = zeros(1,num_feats);
+    d = zeros(1,num_feats);
+    d(1:num_feats) = num_feats;
+    for i = 1:num_feats
+        %% Note: using add-1 smoothing
+        df(1,i) = nnz(train2.counts(:,i)) + 1;
+    end
+    idf = log(d ./ df);
+    [sorted_idf, IDX] = sort(idf);
+    idftrain = train2.counts(:,IDX);
+    X = idftrain(train_range_start:train_range_end, 1:56835);
+    
+end
+
+
+%% porter stemmer
+
+if porterStemmer_flag
+    stem_map = zeros(1, length(vocab));
+    stem_i = 0;
+
+    for iterator = 1:1:length(vocab)
+        if strcmp(vocab{iterator}, 'aed')
+            continue;
+        end
+        % if the word need to be stemmed
+        if ~strcmp(porterStemmer(vocab{iterator}), vocab{iterator})
+            %
+            stem_i = stem_i +1;
+            stemmed_to_ind = find(ismember(vocab, porterStemmer(vocab{iterator}) ));
+            if isempty(stemmed_to_ind)
+                stem_map(iterator) = iterator;
+            else
+                %disp(stemmed_to_ind);
+                %disp(vocab{iterator});
+                stem_map(iterator) = stemmed_to_ind;
+                disp(stemmed_to_ind);
+                disp(iterator);
+                X(:, stemmed_to_ind) = X(:, stemmed_to_ind) + X(:, iterator);
+                % delete or just set to zero?
+                X(:, iterator) = 0;
+                %disp(vocab{stemmed_to_ind});
+            end
+        else
+            stem_map(iterator) = iterator;
+        end
+    end
+ 
+end    %end of the flag
+
+
 %% use porterStemmer
 
 
@@ -119,5 +167,4 @@ if LG_flag
     [prediction, accuracy, dec_values] = predict(Ytest, Xtest, model); % test the training data
     RMSE892 = sqrt(norm(prediction - Ytest, 2)^2 /length(Ytest));
     disp(RMSE892);
-
 end
