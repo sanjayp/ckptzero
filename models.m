@@ -1,18 +1,19 @@
 
 
 
-%%
+%% Clear
 
 clear all;
 %% Flag
 freq_flag = 1;
 stemmer_flag = 0;
-idf_flag = 1;
-SVDs_flag = 0;
-SVM_flag = 0;
+idf_flag = 0;
+SVDs_flag = 1;
+SVM_flag = 1;
 porterStemmer_flag = 0;
-LG_flag = 1;
-
+LG_flag = 0;
+additional_feature_flag = 0;
+disp_flag = 1;
 
 %% Load Data
 
@@ -26,11 +27,14 @@ clearvars train;
 %% set ind
 
 train_range_start = 1;
-train_range_end = 24000;
+train_range_end = 10000;
 test_range_start = 24001;
 test_range_end = 25000;
 
 %% Default 25000 * 65000
+if disp_flag
+    disp('Start Initializing Default Features:');
+end
 
     if 1
         X = train2.counts(train_range_start:train_range_end,:);      %train data 
@@ -49,38 +53,62 @@ test_range_end = 25000;
         Ytest = ones(size(quiz.counts, 1), 1);    %test label        
     end
         
+%% additional feature
+
+if additional_feature_flag
+    if disp_flag
+        disp('Start Adding Addtional Features:');
+    end    
+    
+    
+    
+    
+end
+
 
 %% use word frequency
+
 if freq_flag
+    if disp_flag
+        disp('Start Word Frequency Selection:');
+    end
     total = cat(1, train2.counts, quiz.counts);
     freq = sum(total);
     RMSE_ind = 0;
 
-    for f = 10
+    for f = 100
         RMSE_ind = RMSE_ind + 1;
 
         high_freq = find(freq>=f);  %find high frequency count
         low_freq = find(freq<f);    %find low frequency count
-        highfreq_count = train2.counts(:,high_freq);
-        lowfreq_count = train2.counts(:, low_freq);
+        % Note: use X here, not train2.counts
+        %highfreq_count = X(:,high_freq);    
+        lowfreq_count = X(:, low_freq);
         lowfreq_sum = sum(lowfreq_count')'; %sum up the low frequency as a feature
 
-        X = highfreq_count(1:24000,:);      %train data 
-        Y = train2.labels(1:24000,:);       %train labels
-        Xtest = highfreq_count(end - 1000:end,:);   %test data
-        Ytest = train2.labels(end - 1000:end,:);    %test label
-
+        X = X(:,high_freq);     %train data 
+        Y = Y;       %train labels
+        Xtest = Xtest(:, high_freq);   %test data
+        Ytest = Ytest;    %test label    
+    end
+    if disp_flag
+        disp(size(X));
+        disp('   finished!');
     end
 end
 
 %% Construct idf vector for features
+
 if idf_flag
+    if disp_flag
+        disp('Start IDF:');
+    end
     num_feats = length(train2.counts);
     df = zeros(1,num_feats);
     d = zeros(1,num_feats);
     d(1:num_feats) = num_feats;
     for i = 1:num_feats
-        %% Note: using add-1 smoothing
+        % Note: using add-1 smoothing
         df(1,i) = nnz(train2.counts(:,i)) + 1;
     end
     idf = log(d ./ df);
@@ -94,6 +122,9 @@ end
 %% porter stemmer
 
 if porterStemmer_flag
+    if disp_flag
+        disp('Start Porter Stemmer:');
+    end
     stem_map = zeros(1, length(vocab));
     stem_i = 0;
 
@@ -127,14 +158,16 @@ if porterStemmer_flag
 end    %end of the flag
 
 
-%% use porterStemmer
 
 
 
 %% SVDs(PCA)
 
 if SVDs_flag
-    for components = 10:10:100  %components used
+    if disp_flag
+        disp('Start SVDs(fsvd):');
+    end
+    for components = 100  %components used
         fsvd_power = 2; %fsvd power, 2 as default
         % center the data(based on train or train+test?
         X_total = cat(1, X, Xtest);
@@ -145,25 +178,48 @@ if SVDs_flag
         %A0 = U0(:,1:k) * S0(1:k,1:k) * V0(:,1:k)';
         X_new = X0*V0;
         X_test_new = X0test*V0;
-        X = X_new;
-        Xtest = X_test_new;
+        X = sparse(X_new);
+        Xtest = sparse(X_test_new);
+    end
+    if disp_flag
+        disp(size(X));
+        disp(size(Xtest));
+        disp(size(Ytest));
+        disp('SVDs_flag finished!');
     end
 end
 %% SVM
 
 if SVM_flag
-    clearvars kernel_gaussian;
+    if disp_flag
+        disp('Start SVM:');
+        disp(size(X));
+        disp(size(Xtest));
+    end
+    if ~exist('kernel_gaussian')
+        clearvars kernel_gaussian;  %need to clear repeat variable; otherwise error
+    end
     kernel_gaussian = @(x,x2) kernel_gaussian(x, x2, 20);
     tic;
-    [results.gaussian info.gaussian] = kernel_libsvm(Xnew, Y, XTestNew, Ytest, kernel_gaussian, 100);% ERROR RATE OF GAUSSIAN (SIGMA=20) GOES HERE
+    % kernel_libsvm modify to specify C. If you need to use cross
+    % validation to determine C, modify back.
+    [results.gaussian info.gaussian] = kernel_libsvm(X, Y, Xtest, Ytest, kernel_gaussian, 100);% ERROR RATE OF GAUSSIAN (SIGMA=20) GOES HERE
     toc;
     RMSE333 = sqrt(norm(info.gaussian.yhat - Ytest, 2)^2 /length(Ytest));
     disp(RMSE333);
+    if disp_flag
+        disp('    SVM finished.');
+    end
 end
 
+
 %% Logistic Regression
+
 if LG_flag
-    model = train(Y, X, '-s 0 -q');
+    if disp_flag
+        disp('Start Logistic Regression:');
+    end
+    model = train(Y, X, '-s 6 -q');
     [prediction, accuracy, dec_values] = predict(Ytest, Xtest, model); % test the training data
     RMSE892 = sqrt(norm(prediction - Ytest, 2)^2 /length(Ytest));
     disp(RMSE892);
