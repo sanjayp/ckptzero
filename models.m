@@ -41,6 +41,20 @@ test_range_end = 25000;
         Xtest = quiz.counts;   %test data
         Ytest = ones(size(quiz.counts, 1), 1);    %test label        
     end
+
+
+%% Construct idf vector for features
+num_feats = length(train2.counts);
+df = zeros(1,numfeats);
+d = zeros(1,numfeats);
+d(1:numfeats) = numfeats;
+for i = 1:numfeats
+    %% Note: using add-1 smoothing
+    df(1,i) = nnz(train2.counts(:,i)) + 1;
+end
+idf = log(d ./ df);
+[sorted_idf, IDX] = sort(idf);
+idftrain = train2.counts(IDX,:);
         
 
 %% use word frequency
