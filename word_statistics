@@ -1,0 +1,139 @@
+
+
+
+
+%% Clear
+clear all;
+
+
+%% Flag
+freq_flag = 1;  % use most frequent words; discard words count less than a certain frequency
+
+porterStemmer_flag = 0;
+stemmed_X_flag = 0;
+stopwords_process_flag = 0;
+stopwords_use_flag = 0;
+idf_flag = 0;
+SVDs_flag = 0;
+
+
+% preprocessing
+scale_flag = 0;
+standardization_flag = 0;
+normalization_flag = 0;
+
+% features
+additional_feature_flag = 0;
+
+disp_flag = 1;
+% if you want to leave some data for test, set to 1; if you want to get
+% quiz result set to 0
+train_verify_flag = 1;
+
+
+%% Load Data
+
+load ../data/review_dataset.mat;
+load ../data/add_features_quiz.mat;
+load ../data/add_features_train.mat;
+load ../data/X_stemmed.mat;
+load ../data/stopwords.mat;
+load ../data/stopwords_ind.mat;     % including non_stopwords_ind
+load ../data/non_stopwords_ind.mat;      
+
+% reset train data name to train2 to avoid confliction with func train
+train2 = train;
+clearvars train;
+
+%% set ind
+
+data_comb = 3;
+
+switch data_comb
+    case 0
+        disp('Data comb 0:');
+        train_range_start = 1;
+        train_range_end = 5000;
+        test_range_start = 20001;
+        test_range_end = 25000;        
+    case 1
+        disp('Data comb 1:');
+        train_range_start = 1;
+        train_range_end = 10000;
+        test_range_start = 20001;
+        test_range_end = 25000;  
+    case 2
+        disp('Data Comb 2:');
+        train_range_start = 1;
+        train_range_end = 20000;
+        test_range_start = 20001;
+        test_range_end = 25000;  
+     case 3
+        disp('Data Comb 2:');
+        train_range_start = 1;
+        train_range_end = 24000;
+        test_range_start = 24001;
+        test_range_end = 25000; 
+    case 4
+        disp('Data Comb 3:');
+        train_range_start = 1;
+        train_range_end = 25000;
+        test_range_start = 20001;
+        test_range_end = 25000;  
+    otherwise
+        disp('Default:');
+end
+
+
+        X = train2.counts(train_range_start:train_range_end,:);      %train data 
+        Y = train2.labels(train_range_start:train_range_end,:);       %train labels
+        disp(size(X));
+        disp(size(Y));
+
+        Xtest = train2.counts(test_range_start:test_range_end,:);   %test data
+        Ytest = train2.labels(test_range_start:test_range_end,:);    %test label
+        
+        
+        disp(size(Xtest));
+        disp(size(Ytest));
+%% use word frequency
+
+if freq_flag
+    if disp_flag
+        disp('Start Word Frequency Selection:');
+    end
+    total = cat(1, train2.counts, quiz.counts);
+    freq = sum(total(find(train2.labels == 5), :));
+    RMSE_ind = 0;
+
+    for f = 100
+        RMSE_ind = RMSE_ind + 1;
+
+        high_freq = find(freq>=f);  %find high frequency count
+        low_freq = find(freq<f);    %find low frequency count
+        % Note: use X here, not train2.counts
+        %highfreq_count = X(:,high_freq);    
+        lowfreq_count = X(:, low_freq);
+        lowfreq_sum = sum(lowfreq_count')'; %sum up the low frequency as a feature
+
+        X = X(:,high_freq);     %train data 
+        Y = Y;       %train labels
+        Xtest = Xtest(:, high_freq);   %test data
+        Ytest = Ytest;    %test label    
+    end
+    if disp_flag
+        disp(size(X));
+        disp('   finished!');
+    end
+end
+
+ t = freq(1, :);
+ t = full(t);
+ t = -t';
+ t(:, 2) = (1:1:length(vocab))';
+ t2 = sortrows(t, 1);
+ 
+ %t9 =  vocab(t2(:, 2))';
+ for row=1:500
+    fprintf( '%s\n', vocab{t2(row, 2)});
+end
