@@ -1,22 +1,30 @@
 
 
-
+clear_flag = 1;
 %% Clear
-
-clear all;
+if clear_flag
+    clear all;
+end
 %% Flag
-freq_flag = 0;
+add_punc_flag = 1;
+freq_flag = 0;  % use most frequent words; discard words count less than a certain frequency
 
 porterStemmer_flag = 0;
-stemmed_X_flag = 1;
-idf_flag = 0;
+stemmed_X_flag = 0;
+stopwords_process_flag = 0;
+stopwords_use_flag = 0;
+review_length_flag = 1;
+idf_flag = 1;
 SVDs_flag = 0;
+
 % models flag
 SVM_flag = 0;   % too slow, some problem?
-LG_flag = 1;
+SVM_liblinear_flag = 1;
+LG_flag = 0;
 NB_flag = 0;
-KNN_flag = 0;
+KNN_flag = 0;   % to be implemented
 discriminant_flag = 0;
+kmeans_flag = 0;
 
 % To be implemented
 neural_flag = 0;
@@ -34,18 +42,28 @@ disp_flag = 1;
 % quiz result set to 0
 train_verify_flag = 1;
 %% Load Data
-
+load ../data/ocr_data.mat;
 load ../data/review_dataset.mat;
 load ../data/add_features_quiz.mat;
 load ../data/add_features_train.mat;
-load ../data/X_stemmed;
-
+load ../data/X_stemmed.mat;
+load ../data/stopwords.mat;
+load ../data/stopwords_ind.mat;     % including non_stopwords_ind
+load ../data/non_stopwords_ind.mat; 
+% var: punc_quiz(full), punc_train(full);
+load ../data/punc.mat;  
 % reset train data name to train2 to avoid confliction with func train
 train2 = train;
 clearvars train;
 
-%% set ind
 
+%% Adding features
+if add_punc_flag
+    train2.counts = [train2.counts, sparse(punc_train)];
+end
+
+
+%% set ind
 data_comb = 3;
 
 switch data_comb
@@ -53,7 +71,7 @@ switch data_comb
         disp('Data comb 0:');
         train_range_start = 1;
         train_range_end = 5000;
-        test_range_start = 20001;
+        test_range_start = 24001;
         test_range_end = 25000;        
     case 1
         disp('Data comb 1:');
@@ -92,6 +110,8 @@ end
         %Xtest = [train2.counts,sparse(add_features_quiz)];
     end
     % pick number of observations to be tested
+    
+    %Xtest = [Xtest, sparse(punc_quiz)];
     if train_verify_flag
         X = train2.counts(train_range_start:train_range_end,:);      %train data 
         Y = train2.labels(train_range_start:train_range_end,:);       %train labels
@@ -110,30 +130,136 @@ end
         Xtest = quiz.counts;   %test data
         Ytest = ones(size(quiz.counts, 1), 1);    %test label        
     end
-    if stemmed_X_flag
-        if exist('X_stemmed')
-            X = X_stemmed;
-        end
-        ind = find(sum(X_stemmed) ~= 0);
-        
-        X_stemmed = X_stemmed(:, ind);
-        disp(size(X_stemmed));
-        
-        X = X_stemmed(train_range_start:train_range_end, :);
-        Y = train2.labels(train_range_start:train_range_end,:);  
-        Xtest = X_stemmed(test_range_start:test_range_end,:);
-        Ytest = train2.labels(test_range_start:test_range_end,:); 
-        disp('Stemmer Used.');
-    end
+
     if disp_flag
         disp('    finished.');
     end
         
     
+    
+%% Stopwords
+% find the index
 
+if stopwords_process_flag
+    tic;
+    if disp_flag
+        disp('Start Processing Stop Words:');
+    end
+    stopwords_i = 1;
+    non_stopwords_i = 1;
+    for iterator = 1:1:length(vocab)
+        % if the word need to be stemmed
+        find_stopword = 0;
+        for iterator_stopwords = 1: 1: length(stopwords)
+            if strcmp(vocab{iterator}, stopwords{iterator_stopwords})
+                stopwords_ind(stopwords_i) = iterator;
+                stopwords_i = stopwords_i + 1;
+                find_stopword = 1;
+            end
+        end
+        if ~find_stopword
+            non_stopwords_ind(non_stopwords_i) = iterator;
+            non_stopwords_i = non_stopwords_i + 1;            
+        end
+    end
+    if disp_flag
+        disp('    finished.');
+    end 
+    toc;
+
+end    %end of the flag
+
+if stopwords_use_flag
+    X_extracted = train2.counts;
+    temp = 1:1:size(vocab, 2);
+    temp2 = stopwords_ind(:, 1:100 );
+    temp(:, temp2) = [];
+    temp3 = temp;
+    disp('temp3');
+    disp(size(temp3));
+    X_extracted = X_extracted(:, temp3);
+    X = X_extracted(train_range_start:train_range_end, :);
+    Y = train2.labels(train_range_start:train_range_end,:);  
+    Xtest = X_extracted(test_range_start:test_range_end,:);
+    Ytest = train2.labels(test_range_start:test_range_end,:); 
+    disp('    Note: Stop words used.');
+end     %end of stopwords_use_flag
+
+
+%% Use Stemmer
+
+if stemmed_X_flag
+    if exist('X_stemmed')
+        X = X_stemmed;
+    end
+    ind = find(sum(X_stemmed) ~= 0);
+
+    X_stemmed = X_stemmed(:, ind);
+    disp(size(X_stemmed));
+
+    X = X_stemmed(train_range_start:train_range_end, :);
+    Y = train2.labels(train_range_start:train_range_end,:);  
+    Xtest = X_stemmed(test_range_start:test_range_end,:);
+    Ytest = train2.labels(test_range_start:test_range_end,:); 
+    disp('    Note: Stemmer used.');
+end
+
+    
+%% porter stemmer
+
+if porterStemmer_flag
+    tic;
+    if disp_flag
+        disp('Start Porter Stemmer:');
+    end
+    stem_map = zeros(1, length(vocab));
+    stem_i = 0;
+    X2 = X;
+    for iterator = 1:1:length(vocab)
+
+        if strcmp(vocab{iterator}, 'aed')
+            continue;
+        end
+        % if the word need to be stemmed
+        if ~strcmp(porterStemmer(vocab{iterator}), vocab{iterator})
+            stemmed_to_ind = find(ismember(vocab, porterStemmer(vocab{iterator}) ));
+            if ~isempty(stemmed_to_ind)
+                stem_i = stem_i +1;
+                stem_map(iterator) = stemmed_to_ind;
+                X(:, stemmed_to_ind) = X(:, stemmed_to_ind) + X(:, iterator);
+                X(:, iterator) = 0; % delete or just set to zero?
+                if 0
+                    disp(stem_i);
+                    disp('--------');
+                    disp(vocab{iterator});
+                    disp(vocab{stemmed_to_ind});
+                end
+            end
+        end
+    end
+    if disp_flag
+        disp(stem_i);
+        disp('    finished.');
+    end 
+    toc;
+end    %end of the flag
+
+
+    
 %% additional feature
 
-
+% add review length
+if review_length_flag
+    if disp_flag
+       disp('Start adding review length as a feature.');
+    end
+    X = [X, sum(X, 2)];
+    disp(size(X));
+    Xtest = [Xtest, sum(Xtest, 2)];
+    if disp_flag
+        disp('    finished.');
+    end
+end
 
 
 
@@ -148,7 +274,7 @@ if freq_flag
     freq = sum(total);
     RMSE_ind = 0;
 
-    for f = 100
+    for f = 40
         RMSE_ind = RMSE_ind + 1;
 
         high_freq = find(freq>=f);  %find high frequency count
@@ -253,71 +379,45 @@ end
 
 
 %% Construct idf vector for features
+% author: Sanjay
 
 if idf_flag
     if disp_flag
         disp('Start IDF:');
     end
-    num_feats = length(train2.counts);
-    df = zeros(1,num_feats);
-    d = zeros(1,num_feats);
-    d(1:num_feats) = num_feats;
-    for i = 1:num_feats
-        % Note: using add-1 smoothing
-        df(1,i) = nnz(train2.counts(:,i)) + 1;
+    if 0
+        total_X = train2.counts;
+    else
+        total_X = [X ; Xtest];
     end
-    idf = log(d ./ df);
+    num_features = size(total_X,2);
+    df = zeros(1,num_features);
+    d = zeros(1,num_features);
+    d(1:num_features) = num_features;   %total
+    for i = 1:num_features
+        % Note: using add-1 smoothing
+        df(1,i) = nnz(total_X(:,i)) + 1;  % number of non-zero counts
+    end
+    idf = log(d ./ df); % total counts/feature counts
     [sorted_idf, IDX] = sort(idf);
-    idftrain = train2.counts(:,IDX);
-    X = idftrain(train_range_start:train_range_end, 1:56835);
+    idftrain = total_X(:,IDX);    % reorder the features according to IDF
+    % smaller idf is more representative
+    if 0
+        for iterator = 1:10
+            X = idftrain(train_range_start:train_range_end, 1:5000);   
+            Xtest = idftrain(test_range_start:test_range_end, 1:5000);        
+        end
+    else
+        X = [X , idftrain(train_range_start:train_range_end, 1:4000)];   
+        Xtest = [Xtest, idftrain(test_range_start:test_range_end, 1:4000)];
+    end
     if disp_flag
+        disp('Updated feature size');
+        disp(size(X));
+        disp(size(Xtest));
         disp('    finished.');
     end    
 end
-
-
-%% porter stemmer
-
-if porterStemmer_flag
-    tic;
-    if disp_flag
-        disp('Start Porter Stemmer:');
-    end
-    stem_map = zeros(1, length(vocab));
-    stem_i = 0;
-    X2 = X;
-    for iterator = 1:1:length(vocab)
-
-        if strcmp(vocab{iterator}, 'aed')
-            continue;
-        end
-        % if the word need to be stemmed
-        if ~strcmp(porterStemmer(vocab{iterator}), vocab{iterator})
-            stemmed_to_ind = find(ismember(vocab, porterStemmer(vocab{iterator}) ));
-            if ~isempty(stemmed_to_ind)
-                stem_i = stem_i +1;
-                stem_map(iterator) = stemmed_to_ind;
-                X(:, stemmed_to_ind) = X(:, stemmed_to_ind) + X(:, iterator);
-                X(:, iterator) = 0; % delete or just set to zero?
-                if 0
-                    disp(stem_i);
-                    disp('--------');
-                    disp(vocab{iterator});
-                    disp(vocab{stemmed_to_ind});
-                end
-            end
-        end
-    end
-    if disp_flag
-        disp(stem_i);
-        disp('    finished.');
-    end 
-    toc;
-end    %end of the flag
-
-
-
-
 
 %% SVDs(PCA)
 
@@ -325,7 +425,7 @@ if SVDs_flag
     if disp_flag
         disp('Start SVDs(fsvd):');
     end
-    for components = 1000  %components used
+    for components = 500  %components used
         fsvd_power = 2; %fsvd power, 2 as default
         % center the data(based on train or train+test?
         X_total = cat(1, X, Xtest);
@@ -348,6 +448,8 @@ if SVDs_flag
         disp('    finished!');
     end
 end
+%% MODELS
+
 %% SVM
 
 if SVM_flag
@@ -363,9 +465,9 @@ if SVM_flag
     tic;
     % kernel_libsvm modify to specify C. If you need to use cross
     % validation to determine C, modify back.
-    [results.gaussian info.gaussian] = kernel_libsvm(X, Y, Xtest, Ytest, kernel_gaussian, 100);% ERROR RATE OF GAUSSIAN (SIGMA=20) GOES HERE
+    [results.gaussian info] = kernel_libsvm(X, Y, Xtest, Ytest, kernel_gaussian, 100);% ERROR RATE OF GAUSSIAN (SIGMA=20) GOES HERE
     toc;
-    RMSE_SVM = sqrt(norm(info.gaussian.yhat - Ytest, 2)^2 /length(Ytest));
+    RMSE_SVM = sqrt(norm(info.yhat - Ytest, 2)^2 /length(Ytest));
     disp(RMSE_SVM);
     if disp_flag
         disp('    SVM finished.');
@@ -378,10 +480,41 @@ if LG_flag
     if disp_flag
         disp('Start Logistic Regression:');
     end
- 
+
     tic;
     % best RMSE parameters: '-s 7 -c 0.06 -e 0.001 -q'
     model = train(Y, X, '-s 7 -c 0.06 -e 0.001 -q');
+    [prediction, accuracy, dec_values] = predict(Ytest, Xtest, model); % test the training data
+    RMSE892 = sqrt(norm(prediction - Ytest, 2)^2 /length(Ytest));
+    disp(RMSE892);
+    toc;
+    if disp_flag
+        disp('  finished.');
+    end    
+end
+
+%% SVM from Liblinear
+if SVM_liblinear_flag
+    if disp_flag
+        disp('Start SVM from Liblinear:');
+    end
+ 
+    tic;
+    % best RMSE parameters: '-s 7 -c 0.06 -e 0.001 -q'
+    %model = train(Y, X, '-s 1 -v 5 -e 0.01 -q');
+    if 0
+        crange = 10.^[-10:2:3];
+        for i = 1:numel(crange)
+            acc(i) = train(Y, X, sprintf('-s 1 -v 10 -c %g -q', crange(i)));
+        end
+        [~, bestc_ind] = max(acc);
+        fprintf('Cross-val chose best C = %g\n', crange(bestc));  
+        best_c = crange(bestc_ind);
+    else
+        % modify here to change parameter C
+        best_c = 0.005;
+    end
+    model = train(Y, X, sprintf('-s 1 -c %g -q', best_c));
     [prediction, accuracy, dec_values] = predict(Ytest, Xtest, model); % test the training data
     RMSE892 = sqrt(norm(prediction - Ytest, 2)^2 /length(Ytest));
     disp(RMSE892);
@@ -417,4 +550,52 @@ if discriminant_flag
     prediction = predict(model_discriminant, Xtest);
     RMSE_discriminant = sqrt(norm(prediction - Ytest, 2)^2 /length(Ytest));
     disp(RMSE_discriminant);
+end
+
+
+%% K-means
+% data is unbalanced, we should try 
+if kmeans_flag
+    if disp_flag
+       disp('Start K-means:');
+    end
+    total_X = [X; Xtest];
+    total_Y = [Y; Ytest];
+    
+
+
+    opts = statset('MaxIter',500);
+    prediction_Y = kmeans(total_X, 5, 'options', opts);   
+    %prediction_Y = kmeans(total_X, 5);   
+    prediction_Y2 = prediction_Y(1:size(X,1));
+    %prediction = zeros(size((total_X), 1), 1);
+    disp('kmeans');
+    
+    for iterator = 1:5
+        disp(iterator);
+        % get a cluster
+        label_ind_train = find(prediction_Y2 == iterator);
+        % get the cluster's real label
+        prediction_cluster_train = Y(label_ind_train);
+        % use majority label(Y) of this clusteras the true label
+        x_cluster_label = mode(prediction_cluster_train);
+        % set the cluster label to true label
+        prediction(label_ind_train) = x_cluster_label;
+    end
+
+% 
+%     for iterator = 1:5
+%         disp(iterator);
+%         % get a cluster
+%         label_ind_train = find(prediction_Y2 == iterator);
+%         % get the cluster's real label
+%         prediction_cluster_train = Y(label_ind_train);
+%         % use majority label(Y) of this clusteras the true label
+%         x_cluster_label = mode(prediction_cluster_train);
+%         % set the cluster label to true label
+%         prediction(label_ind_train, 1) = x_cluster_label;
+%     end
+    if disp_flag
+       disp('	finished.');
+    end    
 end
