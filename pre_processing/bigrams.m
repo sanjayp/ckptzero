@@ -3,7 +3,7 @@ M = load('../data/metadata.mat');
 
 % Map bit vectors to pairs
 data = M.train_metadata;
-map = containers.Map('KeyType','char','ValueType','int32');
+map = containers.Map();
 for i = 1:length(data)
 	review = data(i).text;
 	fst = 1;
