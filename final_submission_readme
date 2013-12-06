@@ -1,0 +1,47 @@
+Group: CHECKPOINT0
+Group Member: Di Mu(dimu), Sanjay Paul, Hangfei Lin(hangfei)
+
+To use other models:
+They are located in the unused_model folder. Each model is made up of two .m files: one init_model file, the other one is prediciton_model file. To use the model, run the init_model function, and then run the predition_model function.
+init_model_SVD	prediction_SVD
+init_model_nb	prediction_nb
+
+We train all our models in the model_script.m file. For different models, you could use different flags to train. The model we used to pass the test is trained as follows: we use the 250000 data set(default) and use package Logistic regression(model = train(Y, X, '-s 7 -c 0.06 -e 0.001 -q')) from liblinear package. 
+For naive bays model, we used matlab original nb.
+For SVDs, the feature is too big, so first we pick the most frequent words, throw away the words that appear less than 100 times. Then we do a fast SVDs(fsvd, included in the folder), we pick the first 500 components.
+For adding features, 
+
+Other models are trained using different methods(included in final report).
+In detail:
+0. Load the data.
+
+1. You need to setup your training set first. There are several flags and a switch case help you do this(to facilitate debug).
+data_comb flag: you could set your train data and test data. default is 25000 train data, empty test data.
+
+2. You could add some additional features to your training set. This including review length, punctuation info, stemmer info, IDF info, frequency info. The corresponding flags are as follows:
+review_length_flag = 0;
+add_punc_flag = 0;
+freq_flag = 0;  
+
+
+3. You could also eliminate some features to increase the accuracy or reduce the data amount to boost the training process. It's also control by flags:
+porterStemmer_flag = 0;
+stemmed_X_flag = 0;
+stopwords_process_flag = 0;
+stopwords_use_flag = 0;
+idf_flag = 0;
+SVDs_flag = 1;
+
+4. We also include a rescaling process, but it doesn't work well. 
+scale_flag = 0;
+standardization_flag = 0;
+normalization_flag = 0;
+
+5. This part includes the control flag for the models. You could use several models separately.
+SVM_flag = 0;   % too slow, some problem?
+SVM_liblinear_flag = 0;
+LG_flag = 0;
+NB_flag = 0;
+KNN_flag = 0;   % to be implemented
+discriminant_flag = 0;
+kmeans_flag = 0;
