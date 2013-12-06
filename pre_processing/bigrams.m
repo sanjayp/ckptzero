@@ -3,9 +3,9 @@ M = load('../data/metadata.mat');
 
 % Select the total number of samples to use. For the training data,
 % the range is 1 to 25000.
-SLICE_SIZE = 10000;
+SLICE_SIZE = length(M.train_metadata);
 
-% Map bit vectors to pairs
+% Construct linked lists of data to be made sparse
 data = M.train_metadata;
 clear M
 rowvect = java.util.LinkedList;
@@ -17,7 +17,7 @@ for i = 1:SLICE_SIZE
 	review = data(i).text;
 	fst = 1;
 	snd = 2;
-	% fprintf('%i\n',i);
+	fprintf('%i\n',i);
 	submap = containers.Map();
 	while snd < length(review)
 		gram = char(strcat(lower(review(fst)),'_',lower(review(snd))));
@@ -44,6 +44,9 @@ for i = 1:SLICE_SIZE
 		counts.add(submap(gram));
 	end
 end
+
+% Clear unnecessary data
+clear data word_map
 
 % Construct final matrix
 rowvect = cell2mat(cell(rowvect.toArray(rowvect)));
