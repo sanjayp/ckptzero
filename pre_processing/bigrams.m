@@ -8,7 +8,7 @@ for i = 1:length(data)
 	review = data(i).text;
 	fst = 1;
 	snd = 2;
-	fprintf('%i\n',i);
+	%fprintf('%i\n',i);
 	while snd < length(review)
 		gram = char(strcat(lower(review(fst)),'_',lower(review(snd))));
 		if isKey(map,gram)
@@ -25,9 +25,6 @@ end
 
 % Construct final matrix
 valueset = values(map);
-mat = zeros(length(valueset),length(data));
-for i = 1:length(valueset)
-	mat(:,i) = valueset(i)';
-end
+mat = sparse(vertcat(valueset{:})');
 
 save '../data/bigram.mat' mat
