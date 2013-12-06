@@ -1,7 +1,10 @@
 Group: CHECKPOINT0
 Group Member: Di Mu(dimu), Sanjay Paul, Hangfei Lin(hangfei)
 
-
+To use other models:
+They are located in the unused_model folder. Each model is made up of two .m files: one init_model file, the other one is prediciton_model file. To use the model, run the init_model function, and then run the predition_model function.
+init_model_SVD	prediction_SVD
+init_model_nb	prediction_nb
 
 We train all our models in the model_script.m file. For different models, you could use different flags to train. The model we used to pass the test is trained as follows: we use the 250000 data set(default) and use package Logistic regression(model = train(Y, X, '-s 7 -c 0.06 -e 0.001 -q')) from liblinear package. 
 For naive bays model, we used matlab original nb.
