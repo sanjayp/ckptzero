@@ -3,7 +3,7 @@ M = load('../data/metadata.mat');
 
 % Select the total number of samples to use. For the training data,
 % the range is 1 to 25000.
-SLICE_SIZE = length(M.train_metadata);
+SLICE_SIZE = 15000;
 
 % Construct linked lists of data to be made sparse
 data = M.train_metadata;
@@ -39,9 +39,9 @@ for i = 1:SLICE_SIZE
 	for j = 1:length(keyset)
 		gram = char(keyset(j));
 		idx = word_map(gram);
-		rowvect.add(i);
-		colvect.add(idx);
-		counts.add(submap(gram));
+		rowvect.add(int32(i));
+		colvect.add(int32(idx));
+		counts.add(int32(submap(gram)));
 	end
 end
 
